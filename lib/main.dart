@@ -1,13 +1,18 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
-import 'screens/notes_screen.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
 
-Future main() async {
-  
-  await dotenv.load(fileName: ".env");
-  runApp(MyApp());
+import 'providers/auth_provider.dart';
+import 'navigation/auth_navigator.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // LOAD .env BEFORE using Appwrite client
+  await dotenv.load();
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -15,16 +20,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Notes App',
-      theme: ThemeData(
-        primarySwatch: Colors.deepOrange,
-      ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) =>  HomeScreen(),
-        '/notes': (context) =>  NotesScreen(),
-      },
+    return MultiProvider(
+      providers: [ChangeNotifierProvider(create: (_) => AuthProvider())],
+      child: const AuthNavigator(),
     );
   }
 }

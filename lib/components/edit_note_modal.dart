@@ -1,11 +1,10 @@
-
 import 'package:flutter/material.dart';
-import 'package:appwrite/models.dart';
+import 'package:appwrite/models.dart' as appwrite;
 import '../services/note_service.dart';
 
 class EditNoteModal extends StatefulWidget {
-  final Document note;
-  final Function(Document) onNoteUpdated;
+  final appwrite.Document note;
+  final Function(appwrite.Document) onNoteUpdated;
 
   const EditNoteModal({
     Key? key,
@@ -27,9 +26,10 @@ class _EditNoteModalState extends State<EditNoteModal> {
   @override
   void initState() {
     super.initState();
-    // Initialize text controllers with note data
-    _titleController = TextEditingController(text: widget.note.data['title']);
-    _contentController = TextEditingController(text: widget.note.data['content']);
+    _titleController =
+        TextEditingController(text: widget.note.data['title'] ?? '');
+    _contentController =
+        TextEditingController(text: widget.note.data['content'] ?? '');
   }
 
   @override
@@ -39,23 +39,18 @@ class _EditNoteModalState extends State<EditNoteModal> {
     super.dispose();
   }
 
-  // Reset form error state
   void _resetForm() {
     setState(() {
       _error = null;
     });
   }
 
-  // Save the updated note
   Future<void> _handleSave() async {
-    // Basic form validation
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
     if (title.isEmpty || content.isEmpty) {
-      setState(() {
-        _error = 'Please fill in both title and content';
-      });
+      setState(() => _error = 'Please fill in both title and content');
       return;
     }
 
@@ -65,40 +60,25 @@ class _EditNoteModalState extends State<EditNoteModal> {
         _error = null;
       });
 
-      // Prepare update data
-      final updateData = {
-        'title': title,
-        'content': content,
-      };
+      final updateData = {'title': title, 'content': content};
+      final updatedNote =
+          await _noteService.updateNote(widget.note.$id, updateData);
 
-      // Call update note service
-      final updatedNote = await _noteService.updateNote(widget.note.$id, updateData);
-
-      // Reset form
       _resetForm();
-
-      // Notify parent component and close modal
       widget.onNoteUpdated(updatedNote);
       Navigator.pop(context);
-
     } catch (e) {
       print('Error updating note: $e');
-      setState(() {
-        _error = 'Failed to update note. Please try again.';
-      });
+      setState(() => _error = 'Failed to update note. Please try again.');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 0,
       backgroundColor: Colors.transparent,
       child: contentBox(context),
@@ -109,24 +89,19 @@ class _EditNoteModalState extends State<EditNoteModal> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        shape: BoxShape.rectangle,
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
             'Edit Note',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-
-          // Show error message if there is one
           if (_error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
@@ -136,8 +111,6 @@ class _EditNoteModalState extends State<EditNoteModal> {
                 textAlign: TextAlign.center,
               ),
             ),
-
-          // Title input field
           TextField(
             controller: _titleController,
             decoration: const InputDecoration(
@@ -146,8 +119,6 @@ class _EditNoteModalState extends State<EditNoteModal> {
             ),
           ),
           const SizedBox(height: 15),
-
-          // Content input field
           TextField(
             controller: _contentController,
             decoration: const InputDecoration(
@@ -157,18 +128,13 @@ class _EditNoteModalState extends State<EditNoteModal> {
             maxLines: 5,
           ),
           const SizedBox(height: 20),
-
-          // Buttons row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Cancel button
               TextButton(
                 onPressed: _isLoading ? null : () => Navigator.pop(context),
                 child: const Text('Cancel'),
               ),
-
-              // Save button
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleSave,
                 child: Text(_isLoading ? 'Saving...' : 'Save Changes'),

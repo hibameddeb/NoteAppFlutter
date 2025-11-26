@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:appwrite/models.dart';
+import '../models/note_model.dart';
 import '../services/note_service.dart';
 
 class NoteItem extends StatefulWidget {
-  final Document note;
+  final Note note;
   final Function(String)? onNoteDeleted;
 
   const NoteItem({
@@ -20,15 +20,12 @@ class _NoteItemState extends State<NoteItem> {
   final NoteService _noteService = NoteService();
   bool _isDeleting = false;
 
-  // Format the date for display
-  String _formatDate(String dateString) {
-    final date = DateTime.parse(dateString);
+  // Format date safely
+  String _formatDate(DateTime date) {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  // Handle delete confirmation and execution
   Future<void> _handleDelete() async {
-    // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -41,33 +38,23 @@ class _NoteItemState extends State<NoteItem> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
 
-    // If user confirmed deletion
     if (confirmed == true) {
       try {
-        setState(() {
-          _isDeleting = true;
-        });
+        setState(() => _isDeleting = true);
 
-        // Call the deleteNote service function
-        await _noteService.deleteNote(widget.note.$id);
+        await _noteService.deleteNote(widget.note.id);
 
-        // Notify parent component if callback exists
         if (widget.onNoteDeleted != null) {
-          widget.onNoteDeleted!(widget.note.$id);
+          widget.onNoteDeleted!(widget.note.id);
         }
       } catch (e) {
         print('Error deleting note: $e');
-
-        // Show error snackbar
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to delete note. Please try again.'),
@@ -76,9 +63,7 @@ class _NoteItemState extends State<NoteItem> {
         );
       } finally {
         if (mounted) {
-          setState(() {
-            _isDeleting = false;
-          });
+          setState(() => _isDeleting = false);
         }
       }
     }
@@ -86,45 +71,40 @@ class _NoteItemState extends State<NoteItem> {
 
   @override
   Widget build(BuildContext context) {
-    // Extract note data
-    final title = widget.note.data['title'] as String;
-    final content = widget.note.data['content'] as String;
-    final updatedAt = widget.note.$updatedAt;
+    final note = widget.note;
 
     return Card(
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            // Note content
+            // Main note content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
+                    note.text,
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+
                   const SizedBox(height: 4),
-                  Text(
-                    'Last updated: ${_formatDate(updatedAt)}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
+
+                  if (note.updatedAt != null)
+                    Text(
+                      'Last updated: ${_formatDate(note.updatedAt!)}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
                     ),
-                  ),
+
                   const SizedBox(height: 8),
-                  Text(
-                    content,
-                    style: const TextStyle(fontSize: 14),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 ],
               ),
             ),

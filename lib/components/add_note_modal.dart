@@ -1,13 +1,16 @@
 // lib/widgets/add_note_modal.dart
 import 'package:flutter/material.dart';
 import '../services/note_service.dart';
+import '../models/note_model.dart';
 
 class AddNoteModal extends StatefulWidget {
-  final Function(Map<String, dynamic>) onNoteAdded;
+  final Function(Note) onNoteAdded;
+  final String userId;
 
   const AddNoteModal({
     Key? key,
     required this.onNoteAdded,
+    required this.userId,
   }) : super(key: key);
 
   @override
@@ -18,6 +21,7 @@ class _AddNoteModalState extends State<AddNoteModal> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _noteService = NoteService();
+
   bool _isLoading = false;
   String? _error;
 
@@ -28,7 +32,6 @@ class _AddNoteModalState extends State<AddNoteModal> {
     super.dispose();
   }
 
-  // Reset form state
   void _resetForm() {
     _titleController.clear();
     _contentController.clear();
@@ -37,9 +40,7 @@ class _AddNoteModalState extends State<AddNoteModal> {
     });
   }
 
-  // Save the new note
   Future<void> _handleSave() async {
-    // Basic form validation
     final title = _titleController.text.trim();
     final content = _contentController.text.trim();
 
@@ -56,27 +57,27 @@ class _AddNoteModalState extends State<AddNoteModal> {
         _error = null;
       });
 
-      // Prepare note data
-      final noteData = {
-        'title': title,
-        'content': content,
-        'userId': 'current-user-id', // We'll replace this with actual user ID later
-      };
+      // Combine title + content into the single "text" field stored in Appwrite
+      final combinedText = "$title\n\n$content";
 
-      // Call create note service
-      final newNote = await _noteService.createNote(noteData);
+      final newNote = await _noteService.addNote(
+        combinedText,
+        widget.userId,
+      );
 
-      // Reset form
+      if (newNote == null) {
+        throw Exception("Failed to create note");
+      }
+
       _resetForm();
+      widget.onNoteAdded(newNote);
 
-      // Notify parent component and close modal
-      widget.onNoteAdded(newNote.data);
       Navigator.pop(context);
 
     } catch (e) {
-      print('Error creating note: $e');
+      print("Error creating note: $e");
       setState(() {
-        _error = 'Failed to save note. Please try again.';
+        _error = "Failed to save note. Please try again.";
       });
     } finally {
       setState(() {
@@ -91,7 +92,6 @@ class _AddNoteModalState extends State<AddNoteModal> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      elevation: 0,
       backgroundColor: Colors.transparent,
       child: contentBox(context),
     );
@@ -101,7 +101,6 @@ class _AddNoteModalState extends State<AddNoteModal> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        shape: BoxShape.rectangle,
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
@@ -114,22 +113,17 @@ class _AddNoteModalState extends State<AddNoteModal> {
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
-            textAlign: TextAlign.center,
           ),
+
           const SizedBox(height: 16),
 
-          // Show error message if there is one
           if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                _error!,
-                style: const TextStyle(color: Colors.red),
-                textAlign: TextAlign.center,
-              ),
+            Text(
+              _error!,
+              style: const TextStyle(color: Colors.red),
+              textAlign: TextAlign.center,
             ),
 
-          // Title input field
           TextField(
             controller: _titleController,
             decoration: const InputDecoration(
@@ -137,9 +131,9 @@ class _AddNoteModalState extends State<AddNoteModal> {
               border: OutlineInputBorder(),
             ),
           ),
+
           const SizedBox(height: 15),
 
-          // Content input field
           TextField(
             controller: _contentController,
             decoration: const InputDecoration(
@@ -148,22 +142,20 @@ class _AddNoteModalState extends State<AddNoteModal> {
             ),
             maxLines: 5,
           ),
+
           const SizedBox(height: 20),
 
-          // Buttons row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Cancel button
               TextButton(
                 onPressed: _isLoading ? null : () => Navigator.pop(context),
                 child: const Text('Cancel'),
               ),
 
-              // Save button
               ElevatedButton(
                 onPressed: _isLoading ? null : _handleSave,
-                child: Text(_isLoading ? 'Saving...' : 'Save Note'),
+                child: Text(_isLoading ? "Saving..." : "Save Note"),
               ),
             ],
           ),

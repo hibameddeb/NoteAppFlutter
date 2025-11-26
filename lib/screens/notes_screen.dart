@@ -1,20 +1,21 @@
-// lib/screens/notes_screen.dart (updated)
+// lib/screens/notes_screen.dart
 import 'package:flutter/material.dart';
-import 'package:appwrite/models.dart';
+import 'package:provider/provider.dart';
+import '../models/note_model.dart';
 import '../services/note_service.dart';
-import '../components/note_item.dart';
 import '../components/add_note_modal.dart';
+import '../components/note_item.dart';
+import '../providers/auth_provider.dart';
 
 class NotesScreen extends StatefulWidget {
-  const NotesScreen({Key? key}) : super(key: key);
-
   @override
   _NotesScreenState createState() => _NotesScreenState();
 }
 
 class _NotesScreenState extends State<NotesScreen> {
   final NoteService _noteService = NoteService();
-  List<Document> _notes = [];
+
+  List<Note> _notes = [];
   bool _isLoading = true;
   String? _error;
 
@@ -24,120 +25,146 @@ class _NotesScreenState extends State<NotesScreen> {
     _fetchNotes();
   }
 
-  // Function to fetch notes from the database
   Future<void> _fetchNotes() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+    if (authProvider.user == null) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
     try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      final fetchedNotes = await _noteService.getNotes();
+      final fetchedNotes = await _noteService.getNotes(authProvider.user!.id);
 
       setState(() {
-        _notes = fetchedNotes;
+        _notes = fetchedNotes; // <--- FIXED (you forgot this)
         _isLoading = false;
       });
     } catch (e) {
-      print('Error fetching notes: $e');
+      print("Error fetching notes: $e");
       setState(() {
-        _error = 'Failed to load notes. Please try again.';
+        _error = "Failed to load notes";
         _isLoading = false;
       });
     }
   }
 
-  // Show the add note dialog
+  Future<void> _addNote(String text) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (authProvider.user == null) return;
+
+    try {
+      final newNote = await _noteService.addNote(text, authProvider.user!.id);
+      if (newNote != null) {
+        setState(() {
+          _notes.insert(0, newNote);
+        });
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      print("Failed to add note: $e");
+    }
+  }
+
+  // open add note modal
   void _showAddNoteDialog() {
     showDialog(
       context: context,
       builder: (context) => AddNoteModal(
+        userId: Provider.of<AuthProvider>(context, listen: false).user!.id,
         onNoteAdded: _handleNoteAdded,
       ),
     );
   }
 
-  // Add the new note to the state and avoid refetching
-  void _handleNoteAdded(Map<String, dynamic> noteData) {
-    // Create a temporary Document object
-    final newNote = Document(
-      $id: noteData['\$id'] ?? 'temp-id',
-      $collectionId: 'notes',
-      $databaseId: 'NotesDB',
-      $createdAt: DateTime.now().toString(),
-      $updatedAt: DateTime.now().toString(),
-      $permissions: [],
-      data: noteData,
-    );
+  // add note to list
+  void _handleNoteAdded(Note newNote) {
+    setState(() {
+      _notes.insert(0, newNote);
+    });
+  }
 
+  // delete note from list
+  void _handleNoteDeleted(String noteId) {
     setState(() {
-      _notes = [newNote, ..._notes];
+      _notes.removeWhere((note) => note.id == noteId);
     });
   }
- void _handleNoteDeleted(String noteId) {
-    setState(() {
-      _notes = _notes.where((note) => note.$id != noteId).toList();
-    });
+
+  Widget _buildEmptyNotesView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            "You don't have any notes yet.",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 10),
+          Text(
+            "Tap the + button to create your first note!",
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with title and add button
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'My Notes',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _showAddNoteDialog,
-                  child: const Text('+ Add Note'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Show loading indicator
-            if (_isLoading && _notes.isEmpty)
-              const Center(child: CircularProgressIndicator()),
-
-            // Show error message
-            if (_error != null && _notes.isEmpty)
-              Center(
-                child: Text(
-                  _error!,
-                  style: const TextStyle(color: Colors.red, fontSize: 16),
-                ),
-              ),
-
-            // Show the notes list
-            if (!_isLoading || _notes.isNotEmpty)
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _fetchNotes,
-                    child: ListView.builder(
-                      itemCount: _notes.length,
-                      itemBuilder: (context, index) {
-                        return NoteItem(
-                          note: _notes[index],
-                          onNoteDeleted: _handleNoteDeleted,
-                        );
-                      },
-                    ),
-                  ),
-                ),
-          ],
+      appBar: AppBar(
+        title: const Text(
+          "My Notes",
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
+        actions: [
+         
+        ],
+      ),
+
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _notes.isEmpty
+          ? Center(
+              child: Text(
+                "No notes yet. Add your first one!",
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _fetchNotes,
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: _notes.length,
+                itemBuilder: (context, index) {
+                  return NoteItem(
+                    note: _notes[index],
+                    onNoteDeleted: _handleNoteDeleted,
+                  );
+                },
+              ),
+            ),
+
+      floatingActionButton: FloatingActionButton(
+        child: const Icon(Icons.add),
+        onPressed: () {
+         
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            builder: (context) => AddNoteModal(
+              userId: Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              ).user!.id,
+              onNoteAdded: _handleNoteAdded,
+            ),
+          );
+        },
       ),
     );
   }
